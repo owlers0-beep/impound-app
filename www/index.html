@@ -50,7 +50,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const fmt=d=>d?new Date(d).toLocaleString('ar-SA-u-ca-gregory-nu-latn',{dateStyle:'medium',timeStyle:'short'}):'';
 const imp=()=>cars.filter(c=>c.status==='IMPOUNDED'),rel=()=>cars.filter(c=>c.status==='RELEASED');
 const card=c=>`<div class="card"><div class="row"><b>${esc(c.model)}</b><span class="badge">${c.status==='IMPOUNDED'?'في الساحة':'تم الإفراج'}</span></div>
-<div class="mut">${esc(c.plate_number)} · ${esc(c.color)} · ${esc(c.company_or_owner)}</div>
+<div class="mut">${esc(c.plate_number)} · ${esc(c.color)}</div>
 <div style="font-size:13px"><span class="mut">سبب الحجز: </span>${esc(c.reason)}</div>
 <div style="font-size:13px"><span class="mut">تاريخ الدخول: </span>${fmt(c.entry_date)}</div>
 ${c.exit_date?`<div style="font-size:13px"><span class="mut">تاريخ الإفراج: </span>${fmt(c.exit_date)}</div>`:''}
@@ -61,10 +61,9 @@ home:()=>`<header><img src="${LOGO}" alt=""><div><h1>إدارة ساحة الح�
 <button class="btn" data-a="go" data-t="add">تسجيل سيارة جديدة</button>
 <div class="stats"><div class="card stat"><b style="color:var(--pri)">${imp().length}</b><span class="mut">محجوزة الآن</span></div><div class="card stat"><b>${rel().length}</b><span class="mut">تم الإفراج عنها</span></div></div>
 <h2>أحدث المركبات المحجوزة</h2>${imp().slice(-5).reverse().map(card).join('')||'<div class="card"><b>الساحة فارغة حالياً</b><span class="mut">عند تسجيل مركبة جديدة ستظهر هنا للمتابعة.</span></div>'}</main>`,
-active:()=>{const s=q.trim().toLowerCase(),l=imp().filter(c=>!s||[c.model,c.plate_number,c.color,c.company_or_owner].join(' ').toLowerCase().includes(s)).reverse();
+active:()=>{const s=q.trim().toLowerCase(),l=imp().filter(c=>!s||[c.model,c.plate_number,c.color].join(' ').toLowerCase().includes(s)).reverse();
 return `<header><h1>المحجوزة</h1></header><main><input id="q" type="search" placeholder="ابحث بالموديل أو رقم اللوحة" value="${esc(q)}" aria-label="بحث">${l.map(card).join('')||'<div class="card mut">لا توجد نتائج.</div>'}</main>`},
 add:()=>`<header><div><h1>تسجيل مركبة جديدة</h1><div class="sub">أدخل بيانات السيارة، وسيُسجل وقت الدخول تلقائياً.</div></div></header><main><form id="f" style="display:flex;flex-direction:column;gap:10px">
-<label>اسم الشركة / المالك<input name="o" placeholder="مثال: مؤسسة النور أو اسم المالك"></label>
 <label>موديل السيارة<input name="m" placeholder="مثال: تويوتا كامري 2022"></label>
 <label>اللون<input name="c" placeholder="مثال: أبيض"></label>
 <label>رقم اللوحة<input name="p" placeholder="أدخل رقم اللوحة"></label>
@@ -141,8 +140,8 @@ else if(a==='rel'){const id=b.dataset.id;if(pend===id){const c=cars.find(x=>x.id
 else if(a==='view'){rk=b.dataset.k;tab='report';render();scrollTo(0,0)}else if(a==='pdf')exportPdf();else if(a==='share')shareReport();else if(a==='print')printReport()});
 document.addEventListener('input',e=>{if(e.target.id==='q'){q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)}});
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target,v=n=>f.elements[n].value.trim();
-if(!['o','m','c','p','r'].every(n=>v(n))){document.querySelector('.err').textContent='أكمل جميع البيانات المطلوبة قبل الحفظ.';return}
-cars.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),company_or_owner:v('o'),model:v('m'),color:v('c'),plate_number:v('p'),reason:v('r'),entry_date:new Date().toISOString(),exit_date:null,status:'IMPOUNDED'});
+if(!['m','c','p','r'].every(n=>v(n))){document.querySelector('.err').textContent='أكمل جميع البيانات المطلوبة قبل الحفظ.';return}
+cars.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),model:v('m'),color:v('c'),plate_number:v('p'),reason:v('r'),entry_date:new Date().toISOString(),exit_date:null,status:'IMPOUNDED'});
 save();err='';tab='home';render()});
 render();
 </script>
