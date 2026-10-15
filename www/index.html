@@ -94,25 +94,31 @@ const xr=len,T=3+3*N;push('xref\n0 '+T+'\n0000000000 65535 f \n');
 for(let n=1;n<T;n++)push(String(offs[n]).padStart(10,'0')+' 00000 n \n');
 push('trailer\n<< /Size '+T+' /Root 1 0 R >>\nstartxref\n'+xr+'\n%%EOF');
 return new Blob(parts,{type:'application/pdf'})}
-async function buildReportPdf(k){const l=k==='imp'?imp():rel(),t=k==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها';
-const cols=k==='imp'?[['العدد',70],['نوع المركبة',240],['اللون',150],['رقم اللوحة',200],['سبب الحجز',270],['تاريخ الدخول',190]]:[['العدد',60],['نوع المركبة',200],['اللون',120],['رقم اللوحة',170],['سبب الحجز',230],['تاريخ الدخول',170],['تاريخ الإفراج',170]];
-const W=1240,H=1754,R=W-60,LH=34,F='sans-serif';
+async function buildReportPdf(k){const l=k==='imp'?imp():rel(),AR=v=>String(v==null?'':v).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+const fmtD=d=>{const z=new Date(d),p=n=>String(n).padStart(2,'0');return z.getFullYear()+'/'+p(z.getMonth()+1)+'/'+p(z.getDate())};
+const title=k==='imp'?'(الســيــارات المــــحجوزة قــــســـم الســيـــر)':'(الســيــارات المفــــرج عنهــا قــــســـم الســيـــر)';
+const cols=k==='imp'?[['عدد',67],['نوع المركبة',252],['اللون',210],['رقم اللوحة',209],['سبب الحجز',240]]:[['عدد',60],['نوع المركبة',180],['اللون',120],['رقم اللوحة',165],['سبب الحجز',163],['تاريخ الدخول',145],['تاريخ الإفراج',145]];
+const W=1240,H=1754,TR=1113,LH=34,MINH=51,B='bold 26px sans-serif';
 const img=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=LOGO});
 const pages=[];let x,y;
-const D=(s,xr,yy,dir)=>{x.direction=dir||'rtl';x.textAlign='right';x.fillText(s,xr,yy)};
-const wrap=(s,w)=>{const out=[];let cur='';for(const wd of String(s).split(/\s+/)){const tt=cur?cur+' '+wd:wd;if(x.measureText(tt).width>w&&cur){out.push(cur);cur=wd}else cur=tt}out.push(cur);return out};
-const head=()=>{x.fillStyle='#172A34';x.fillRect(60,y,W-120,50);x.fillStyle='#fff';x.font='bold 24px '+F;let xr=R;cols.forEach(([n,w])=>{D(n,xr-12,y+34);xr-=w});y+=50;x.font='22px '+F};
-const page=first=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);pages.push(cv);y=60;
-if(first){if(img)x.drawImage(img,R-90,y,90,Math.round(90*img.height/img.width));x.fillStyle='#172A34';x.font='bold 42px '+F;D(t,R-110,y+48);x.font='24px '+F;x.fillStyle='#5F6E75';D(fmtS(new Date()),R-110,y+90,'ltr');y+=130}head()};
+const T=(s,xc,yy,font,al)=>{x.font=font||B;x.direction='rtl';x.textAlign=al||'center';x.fillStyle='#000';x.fillText(s,xc,yy)};
+const wrap=(s,w)=>{x.font=B;const out=[];let cur='';for(const wd of String(s).split(/\s+/)){const tt=cur?cur+' '+wd:wd;if(x.measureText(tt).width>w&&cur){out.push(cur);cur=wd}else cur=tt}out.push(cur);return out};
+const head=()=>{x.strokeStyle='#000';x.lineWidth=2;x.setLineDash([]);let xr=TR;cols.forEach(([n,w])=>{x.strokeRect(xr-w,y,w,46);T(n,xr-w/2,y+32);xr-=w});y+=46};
+const page=first=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);pages.push(cv);
+x.strokeStyle='#000';x.setLineDash([]);x.lineWidth=6;x.strokeRect(48,48,W-96,H-96);x.lineWidth=2;x.strokeRect(60,60,W-120,H-120);y=110;
+if(first){['المملكة العربية السعودية','وزارة الداخلية','الأمن العام','الإدارة العامة للمرور','إدارة المرور منطقة الحدود الشمالية','قسم السير'].forEach((s,i)=>T(s,955,135+i*42,B));
+T('بسم الله الرحمن الرحيم',640,125,B);if(img){const w=130;x.drawImage(img,575,160,w,Math.round(w*img.height/img.width))}
+['الــرقـــم:','التـــاريـــخ:','المشفوعات:','الموضــــوع:'].forEach((s,i)=>{const yy=135+i*50;T(s,500,yy,B,'right');const lw=x.measureText(s).width;x.strokeStyle='#000';x.lineWidth=2;x.setLineDash([3,7]);x.beginPath();x.moveTo(110,yy-4);x.lineTo(500-lw-14,yy-4);x.stroke();x.setLineDash([])});
+x.font='bold 36px sans-serif';const tw=x.measureText(title).width;T(title,624,420,'bold 36px sans-serif');x.fillStyle='#000';x.fillRect(624-tw/2,428,tw,3);y=450}
+head()};
 page(true);
-l.forEach((c,i)=>{x.font='22px '+F;const cells=[String(i+1),c.model,c.color,c.plate_number,c.reason,fmtS(c.entry_date)].concat(k==='rel'?[fmtS(c.exit_date)]:[]);
-const ls=cells.map((v,j)=>wrap(v,cols[j][1]-24)),rh=Math.max(...ls.map(a=>a.length))*LH+20;
-if(y+rh>H-90)page(false);
-x.fillStyle=i%2?'#F5F2EA':'#fff';x.fillRect(60,y,W-120,rh);x.strokeStyle='#C9C1B0';x.lineWidth=1;x.fillStyle='#172A34';
-let xr=R;cells.forEach((v,j)=>{x.strokeRect(xr-cols[j][1],y,cols[j][1],rh);const dir=(j===0||j>=5)?'ltr':'rtl';ls[j].forEach((s,n)=>D(s,xr-12,y+LH*(n+1)+2,dir));xr-=cols[j][1]});y+=rh});
-if(!l.length){x.font='26px '+F;x.fillStyle='#5F6E75';D('لا توجد سجلات.',R-12,y+40)}
-const jp=pages.map((p,i)=>{const g=p.getContext('2d');g.fillStyle='#5F6E75';g.font='22px '+F;g.direction='ltr';g.textAlign='center';g.fillText((i+1)+' / '+pages.length,W/2,H-40);
-const b=atob(p.toDataURL('image/jpeg',0.92).split(',')[1]),u=new Uint8Array(b.length);for(let n=0;n<b.length;n++)u[n]=b.charCodeAt(n);return{data:u,w:W,h:H}});
+l.concat([null]).forEach((c,i)=>{const cells=c?[AR(i+1),c.model,c.color,c.plate_number,c.reason].concat(k==='rel'?[fmtD(c.entry_date),fmtD(c.exit_date)]:[]):cols.map(()=>'');
+const ls=cells.map((v,j)=>wrap(AR(v),cols[j][1]-20)),n=Math.max(...ls.map(a=>a.length)),rh=Math.max(MINH,n*LH+16);
+if(y+rh>H-110){page(false);y=110;head()}
+x.strokeStyle='#000';x.lineWidth=2;x.setLineDash([]);let xr=TR;
+cells.forEach((v,j)=>{const w=cols[j][1];x.strokeRect(xr-w,y,w,rh);ls[j].forEach((s,m)=>{if(s)T(s,xr-w/2,y+(rh-ls[j].length*LH)/2+LH*(m+1)-8,B)});xr-=w});y+=rh});
+const jp=pages.map((p,i)=>{const g=p.getContext('2d');if(pages.length>1){g.fillStyle='#000';g.font='22px sans-serif';g.direction='rtl';g.textAlign='center';g.fillText(AR(i+1)+' / '+AR(pages.length),W/2,H-76)}
+const bs=atob(p.toDataURL('image/jpeg',0.92).split(',')[1]),u=new Uint8Array(bs.length);for(let q=0;q<bs.length;q++)u[q]=bs.charCodeAt(q);return{data:u,w:W,h:H}});
 return makePdf(jp)}
 async function saveFile(blob,name){const P=window.Capacitor&&Capacitor.Plugins;
 if(P&&P.Filesystem&&P.Share){const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
