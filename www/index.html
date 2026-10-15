@@ -70,7 +70,7 @@ add:()=>`<header><div><h1>تسجيل مركبة جديدة</h1><div class="sub">
 <label>رقم اللوحة<input name="p" placeholder="أدخل رقم اللوحة"></label>
 <label>سبب الحجز<textarea name="r" rows="2" placeholder="اكتب سبب حجز المركبة"></textarea></label>
 <div class="err">${esc(err)}</div><button class="btn pri" type="submit">حفظ</button><button class="btn sec" type="button" data-a="go" data-t="home">إلغاء والعودة</button></form></main>`,
-report:()=>`<header><h1>${rk==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها'}</h1></header><main><div class="rep" style="background:#fff;color:#000;border-radius:12px;padding:12px;overflow-x:auto">${repHtml(rk)}</div><button class="btn" data-a="share">مشاركة التقرير</button><button class="btn sec" data-a="print">طباعة / حفظ PDF</button><p class="mut" id="msg"></p><button class="btn sec" data-a="go" data-t="reports">رجوع</button><p class="mut">إذا ما فتحت نافذة الطباعة، استخدم قائمة المتصفح (مشاركة ← طباعة) وبيطلع التقرير نفسه.</p></main>`,
+report:()=>`<header><h1>${rk==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها'}</h1></header><main><div class="rep" style="background:#fff;color:#000;border-radius:12px;padding:12px;overflow-x:auto">${repHtml(rk)}</div><button class="btn pri" data-a="pdf">تصدير PDF</button><button class="btn sec" data-a="share">مشاركة كنص</button><p class="mut" id="msg"></p><button class="btn sec" data-a="go" data-t="reports">رجوع</button></main>`,
 reports:()=>{const r=(t,d,k,n)=>`<div class="card"><div class="row"><b>${t}</b><span class="badge">${n} مركبة</span></div><div class="mut">${d}</div><button class="btn" data-a="view" data-k="${k}">عرض التقرير</button></div>`;
 return `<header><h1>التقارير</h1></header><main>${r('تقرير السيارات المحجوزة حالياً','قائمة محدثة بالمركبات الموجودة في الساحة، مع بياناتها وتاريخ دخولها.','imp',imp().length)}${r('تقرير السيارات المفرج عنها','قائمة المركبات التي تم تسليمها، متضمنة تاريخ الدخول والإفراج.','rel',rel().length)}<p class="mut">البيانات محفوظة على هذا الجهاز فقط. احفظ التقارير خارج الجهاز عند الحاجة إلى نسخة.</p></main>`}
 };
@@ -79,6 +79,50 @@ function render(){document.getElementById('app').innerHTML=views[tab]();if(tab==
 document.getElementById('nav').innerHTML=tabs.map(([k,l])=>`<button data-a="go" data-t="${k}" class="${k===tab||(tab==='add'&&k==='home')||(tab==='report'&&k==='reports')?'on':''}">${l}</button>`).join('')}
 function repHtml(k){const l=k==='imp'?imp():rel(),t=k==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها';
 return `<div class="h"><img src="${LOGO}" alt=""><div><h2>${t}</h2><div>${fmt(new Date())}</div></div></div><table><tr><th>العدد</th><th>نوع المركبة</th><th>اللون</th><th>رقم اللوحة</th><th>سبب الحجز</th><th>${k==='imp'?'تاريخ الدخول':'الدخول / الإفراج'}</th></tr>${l.map((c,i)=>`<tr><td>${i+1}</td><td>${esc(c.model)}</td><td>${esc(c.color)}</td><td>${esc(c.plate_number)}</td><td>${esc(c.reason)}</td><td>${fmt(c.entry_date)}${k==='rel'?' / '+fmt(c.exit_date):''}</td></tr>`).join('')}</table>`}
+const fmtS=d=>{const x=new Date(d),p=n=>String(n).padStart(2,'0');return x.getFullYear()+'/'+p(x.getMonth()+1)+'/'+p(x.getDate())+' '+p(x.getHours())+':'+p(x.getMinutes())};
+function makePdf(jpgs){const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+const push=b=>{if(typeof b==='string')b=enc.encode(b);parts.push(b);len+=b.length};
+const obj=(n,fn)=>{offs[n]=len;push(n+' 0 obj\n');fn();push('\nendobj\n')};
+push('%PDF-1.4\n');const N=jpgs.length;
+obj(1,()=>push('<< /Type /Catalog /Pages 2 0 R >>'));
+obj(2,()=>push('<< /Type /Pages /Count '+N+' /Kids ['+jpgs.map((_,i)=>(3+3*i)+' 0 R').join(' ')+'] >>'));
+jpgs.forEach((j,i)=>{const p=3+3*i,c='q 595 0 0 842 0 0 cm /Im0 Do Q';
+obj(p,()=>push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 '+(p+2)+' 0 R >> >> /Contents '+(p+1)+' 0 R >>'));
+obj(p+1,()=>push('<< /Length '+c.length+' >>\nstream\n'+c+'\nendstream'));
+obj(p+2,()=>{push('<< /Type /XObject /Subtype /Image /Width '+j.w+' /Height '+j.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+j.data.length+' >>\nstream\n');push(j.data);push('\nendstream')})});
+const xr=len,T=3+3*N;push('xref\n0 '+T+'\n0000000000 65535 f \n');
+for(let n=1;n<T;n++)push(String(offs[n]).padStart(10,'0')+' 00000 n \n');
+push('trailer\n<< /Size '+T+' /Root 1 0 R >>\nstartxref\n'+xr+'\n%%EOF');
+return new Blob(parts,{type:'application/pdf'})}
+async function buildReportPdf(k){const l=k==='imp'?imp():rel(),t=k==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها';
+const cols=k==='imp'?[['العدد',70],['نوع المركبة',240],['اللون',150],['رقم اللوحة',200],['سبب الحجز',270],['تاريخ الدخول',190]]:[['العدد',60],['نوع المركبة',200],['اللون',120],['رقم اللوحة',170],['سبب الحجز',230],['تاريخ الدخول',170],['تاريخ الإفراج',170]];
+const W=1240,H=1754,R=W-60,LH=34,F='sans-serif';
+const img=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=LOGO});
+const pages=[];let x,y;
+const D=(s,xr,yy,dir)=>{x.direction=dir||'rtl';x.textAlign='right';x.fillText(s,xr,yy)};
+const wrap=(s,w)=>{const out=[];let cur='';for(const wd of String(s).split(/\s+/)){const tt=cur?cur+' '+wd:wd;if(x.measureText(tt).width>w&&cur){out.push(cur);cur=wd}else cur=tt}out.push(cur);return out};
+const head=()=>{x.fillStyle='#172A34';x.fillRect(60,y,W-120,50);x.fillStyle='#fff';x.font='bold 24px '+F;let xr=R;cols.forEach(([n,w])=>{D(n,xr-12,y+34);xr-=w});y+=50;x.font='22px '+F};
+const page=first=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,H);pages.push(cv);y=60;
+if(first){if(img)x.drawImage(img,R-90,y,90,Math.round(90*img.height/img.width));x.fillStyle='#172A34';x.font='bold 42px '+F;D(t,R-110,y+48);x.font='24px '+F;x.fillStyle='#5F6E75';D(fmtS(new Date()),R-110,y+90,'ltr');y+=130}head()};
+page(true);
+l.forEach((c,i)=>{x.font='22px '+F;const cells=[String(i+1),c.model,c.color,c.plate_number,c.reason,fmtS(c.entry_date)].concat(k==='rel'?[fmtS(c.exit_date)]:[]);
+const ls=cells.map((v,j)=>wrap(v,cols[j][1]-24)),rh=Math.max(...ls.map(a=>a.length))*LH+20;
+if(y+rh>H-90)page(false);
+x.fillStyle=i%2?'#F5F2EA':'#fff';x.fillRect(60,y,W-120,rh);x.strokeStyle='#C9C1B0';x.lineWidth=1;x.fillStyle='#172A34';
+let xr=R;cells.forEach((v,j)=>{x.strokeRect(xr-cols[j][1],y,cols[j][1],rh);const dir=(j===0||j>=5)?'ltr':'rtl';ls[j].forEach((s,n)=>D(s,xr-12,y+LH*(n+1)+2,dir));xr-=cols[j][1]});y+=rh});
+if(!l.length){x.font='26px '+F;x.fillStyle='#5F6E75';D('لا توجد سجلات.',R-12,y+40)}
+const jp=pages.map((p,i)=>{const g=p.getContext('2d');g.fillStyle='#5F6E75';g.font='22px '+F;g.direction='ltr';g.textAlign='center';g.fillText((i+1)+' / '+pages.length,W/2,H-40);
+const b=atob(p.toDataURL('image/jpeg',0.92).split(',')[1]),u=new Uint8Array(b.length);for(let n=0;n<b.length;n++)u[n]=b.charCodeAt(n);return{data:u,w:W,h:H}});
+return makePdf(jp)}
+async function saveFile(blob,name){const P=window.Capacitor&&Capacitor.Plugins;
+if(P&&P.Filesystem&&P.Share){const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+const w=await P.Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});await P.Share.share({title:name,url:w.uri,dialogTitle:'تصدير PDF'});return}
+const f=new File([blob],name,{type:'application/pdf'});
+if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove()}
+async function exportPdf(){const m=document.getElementById('msg');m.textContent='جاري إنشاء الملف...';
+try{const blob=await buildReportPdf(rk);await saveFile(blob,(rk==='imp'?'impounded':'released')+'-report-'+new Date().toISOString().slice(0,10)+'.pdf');m.textContent=''}
+catch(e){m.textContent=e&&e.name==='AbortError'?'':'تعذر إنشاء الملف.'}}
 function repText(k){const l=k==='imp'?imp():rel(),t=k==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها';return t+'\n'+fmt(new Date())+'\n\n'+(l.map((c,i)=>`${i+1}) ${c.model} | ${c.color} | ${c.plate_number} | ${c.reason} | ${fmt(c.entry_date)}${k==='rel'?' ← '+fmt(c.exit_date):''}`).join('\n')||'لا توجد سجلات.')}
 async function shareReport(){const text=repText(rk),title='إدارة السيارات المحجوزة',m=document.getElementById('msg');
 try{const S=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Share;if(S){await S.share({title,text,dialogTitle:title});return}
@@ -88,7 +132,7 @@ function printReport(){try{window.print()}catch(e){}}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
 if(a==='go'){tab=b.dataset.t;pend=null;err='';render()}
 else if(a==='rel'){const id=b.dataset.id;if(pend===id){const c=cars.find(x=>x.id===id);c.status='RELEASED';c.exit_date=new Date().toISOString();save();pend=null}else pend=id;render()}
-else if(a==='view'){rk=b.dataset.k;tab='report';render();scrollTo(0,0)}else if(a==='share')shareReport();else if(a==='print')printReport()});
+else if(a==='view'){rk=b.dataset.k;tab='report';render();scrollTo(0,0)}else if(a==='pdf')exportPdf();else if(a==='share')shareReport();else if(a==='print')printReport()});
 document.addEventListener('input',e=>{if(e.target.id==='q'){q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)}});
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target,v=n=>f.elements[n].value.trim();
 if(!['o','m','c','p','r'].every(n=>v(n))){document.querySelector('.err').textContent='أكمل جميع البيانات المطلوبة قبل الحفظ.';return}
