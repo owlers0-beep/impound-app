@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>إدارة السيارات المحجوزة</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="السيارات المحجوزة">
+<meta name="theme-color" content="#172A34">
 <style>
 :root{--bg:#F5F2EA;--fg:#172A34;--card:#fff;--pri:#BF7936;--mut:#5F6E75;--bd:#E0D9CB;--acc:#F1E6D4;--accf:#5C3D20;--sec:#ECE5D8;--dst:#B64E42;--hdr:#172A34;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10191E;--fg:#F1EEE6;--card:#1A2830;--mut:#A3B0B6;--bd:#2B3B44;--acc:#3A2A1A;--accf:#F1E6D4;--sec:#24343D;--hdr:#0B1216}}
@@ -46,6 +52,24 @@ const LOGO='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACOCAYAAAC2aQNrAA
 let cars=[],tab='home',q='',pend=null,err='',rk='imp';
 try{cars=JSON.parse(localStorage.getItem(K)||'[]')}catch(e){cars=[]}
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(cars))}catch(e){}};
+let cloud=null,syncs='local',localCars=[],migMsg='';
+const errS=e=>{syncs='error:'+(e&&(e.code||e.message)||'');render()};
+const dbAdd=o=>{const d=Object.assign({entry_date:new Date().toISOString(),exit_date:null,status:'IMPOUNDED'},o);
+if(cloud){cloud.add(d).catch(errS)}else{d.id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);cars.push(d);save()}};
+const dbRel=id=>{const t=new Date().toISOString();
+if(cloud){cloud.rel(id,t).catch(errS)}else{const c=cars.find(x=>x.id===id);if(c){c.status='RELEASED';c.exit_date=t;save()}}};
+const chip=()=>{const m={local:'وضع محلي (غير مربوط بالقاعدة المشتركة)',ok:'متزامن مع القاعدة المشتركة',pending:'جاري المزامنة...',cache:'غير متصل، تُعرض آخر نسخة محفوظة'};
+if(syncs==='local')return '';return '● '+(syncs.startsWith('error:')?'تعذر الاتصال بالقاعدة ('+syncs.slice(6)+')':m[syncs])};
+const migBanner=()=>cloud&&localCars.length?`<div class="card"><b>يوجد ${localCars.length} سجل قديم على هذا الجهاز</b><span class="mut">ارفعها مرة واحدة فقط للقاعدة المشتركة، ولا تكررها من جهاز ثاني لنفس السجلات.</span><button class="btn pri" data-a="mig">رفع السجلات للقاعدة المشتركة</button><div class="err">${esc(migMsg)}</div></div>`:'';
+async function migrate(){migMsg='جاري الرفع...';render();
+try{for(const c of localCars){const r=await cloud.add({model:c.model,color:c.color,plate_number:c.plate_number,reason:c.reason,entry_date:c.entry_date,exit_date:null,status:'IMPOUNDED'});if(c.status==='RELEASED')await cloud.rel(r.id,c.exit_date||new Date().toISOString())}
+try{localStorage.removeItem(K)}catch(e){}localCars=[];migMsg=''}catch(e){migMsg='تعذر الرفع، تأكد من الاتصال بالإنترنت وأعد المحاولة.'}render()}
+function initCloud(){const cfg=window.FIREBASE_CONFIG,F=window.FB;if(!F||!cfg||!cfg.projectId||!cfg.apiKey)return;
+try{const app=F.initializeApp(cfg);let db;try{db=F.initializeFirestore(app,{localCache:F.persistentLocalCache()})}catch(e){db=F.getFirestore(app)}
+const col=F.collection(db,'cars');cloud={add:o=>F.addDoc(col,o),rel:(id,t)=>F.updateDoc(F.doc(db,'cars',id),{status:'RELEASED',exit_date:t})};
+localCars=cars;cars=[];syncs='cache';
+F.onSnapshot(F.query(col,F.orderBy('entry_date')),sn=>{cars=sn.docs.map(d=>Object.assign({id:d.id},d.data()));syncs=sn.metadata.fromCache?'cache':(sn.metadata.hasPendingWrites?'pending':'ok');render()},errS)}
+catch(e){cloud=null;syncs='error:'+e.message}}
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=d=>d?new Date(d).toLocaleString('ar-SA-u-ca-gregory-nu-latn',{dateStyle:'medium',timeStyle:'short'}):'';
 const imp=()=>cars.filter(c=>c.status==='IMPOUNDED'),rel=()=>cars.filter(c=>c.status==='RELEASED');
@@ -56,20 +80,20 @@ const card=c=>`<div class="card"><div class="row"><b>${esc(c.model)}</b><span cl
 ${c.exit_date?`<div style="font-size:13px"><span class="mut">تاريخ الإفراج: </span>${fmt(c.exit_date)}</div>`:''}
 ${c.status==='IMPOUNDED'?`<button class="btn ${pend===c.id?'dst':'sec'}" data-a="rel" data-id="${c.id}">${pend===c.id?'اضغط مرة أخرى للتأكيد':'تسجيل خروج'}</button>`:''}</div>`;
 const views={
-home:()=>`<header><img src="${LOGO}" alt=""><div><h1>إدارة ساحة الحجز</h1><div class="sub">سجل المركبات ومتابعة الإفراج، في مكان واحد.</div></div></header><main>
+home:()=>`<header><img src="${LOGO}" alt=""><div><h1>إدارة ساحة الحجز</h1><div class="sub">سجل المركبات ومتابعة الإفراج، في مكان واحد.</div><div class="sub">${chip()}</div></div></header><main>
 <div class="hero"><div class="sub">المركبات في الساحة الآن</div><b>${imp().length}</b> مركبة محجوزة</div>
-<button class="btn" data-a="go" data-t="add">تسجيل سيارة جديدة</button>
+${migBanner()}<button class="btn" data-a="go" data-t="add">تسجيل سيارة جديدة</button>
 <div class="stats"><div class="card stat"><b style="color:var(--pri)">${imp().length}</b><span class="mut">محجوزة الآن</span></div><div class="card stat"><b>${rel().length}</b><span class="mut">تم الإفراج عنها</span></div></div>
 <h2>أحدث المركبات المحجوزة</h2>${imp().slice(-5).reverse().map(card).join('')||'<div class="card"><b>الساحة فارغة حالياً</b><span class="mut">عند تسجيل مركبة جديدة ستظهر هنا للمتابعة.</span></div>'}</main>`,
 active:()=>{const s=q.trim().toLowerCase(),l=imp().filter(c=>!s||[c.model,c.plate_number,c.color].join(' ').toLowerCase().includes(s)).reverse();
-return `<header><h1>المحجوزة</h1></header><main><input id="q" type="search" placeholder="ابحث بالموديل أو رقم اللوحة" value="${esc(q)}" aria-label="بحث">${l.map(card).join('')||'<div class="card mut">لا توجد نتائج.</div>'}</main>`},
+return `<header><div><h1>المحجوزة</h1><div class="sub">${chip()}</div></div></header><main><input id="q" type="search" placeholder="ابحث بالموديل أو رقم اللوحة" value="${esc(q)}" aria-label="بحث">${l.map(card).join('')||'<div class="card mut">لا توجد نتائج.</div>'}</main>`},
 add:()=>`<header><div><h1>تسجيل مركبة جديدة</h1><div class="sub">أدخل بيانات السيارة، وسيُسجل وقت الدخول تلقائياً.</div></div></header><main><form id="f" style="display:flex;flex-direction:column;gap:10px">
 <label>موديل السيارة<input name="m" placeholder="مثال: تويوتا كامري 2022"></label>
 <label>اللون<input name="c" placeholder="مثال: أبيض"></label>
 <label>رقم اللوحة<input name="p" placeholder="أدخل رقم اللوحة"></label>
 <label>سبب الحجز<textarea name="r" rows="2" placeholder="اكتب سبب حجز المركبة"></textarea></label>
 <div class="err">${esc(err)}</div><button class="btn pri" type="submit">حفظ</button><button class="btn sec" type="button" data-a="go" data-t="home">إلغاء والعودة</button></form></main>`,
-report:()=>`<header><h1>${rk==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها'}</h1></header><main><div class="rep" style="background:#fff;color:#000;border-radius:12px;padding:12px;overflow-x:auto">${repHtml(rk)}</div><button class="btn pri" data-a="pdf">تصدير PDF</button><button class="btn sec" data-a="share">مشاركة كنص</button><p class="mut" id="msg"></p><button class="btn sec" data-a="go" data-t="reports">رجوع</button></main>`,
+report:()=>`<header><h1>${rk==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها'}</h1></header><main><div class="rep" style="background:#fff;color:#000;border-radius:12px;padding:12px;overflow-x:auto">${repHtml(rk)}</div><label>اسم الملف (مطلوب)<input id="fn" maxlength="80" placeholder="اكتب اسم الملف، مثال: تقرير الأسبوع الأول"></label><button class="btn pri" data-a="pdf">تصدير PDF</button><button class="btn sec" data-a="share">مشاركة كنص</button><p class="mut" id="msg"></p><button class="btn sec" data-a="go" data-t="reports">رجوع</button></main>`,
 reports:()=>{const r=(t,d,k,n)=>`<div class="card"><div class="row"><b>${t}</b><span class="badge">${n} مركبة</span></div><div class="mut">${d}</div><button class="btn" data-a="view" data-k="${k}">عرض التقرير</button></div>`;
 return `<header><h1>التقارير</h1></header><main>${r('تقرير السيارات المحجوزة حالياً','قائمة محدثة بالمركبات الموجودة في الساحة، مع بياناتها وتاريخ دخولها.','imp',imp().length)}${r('تقرير السيارات المفرج عنها','قائمة المركبات التي تم تسليمها، متضمنة تاريخ الدخول والإفراج.','rel',rel().length)}<p class="mut">البيانات محفوظة على هذا الجهاز فقط. احفظ التقارير خارج الجهاز عند الحاجة إلى نسخة.</p></main>`}
 };
@@ -126,8 +150,13 @@ const f=new File([blob],name,{type:'application/pdf'});
 if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}
 const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove()}
 async function exportPdf(){const m=document.getElementById('msg');m.textContent='جاري إنشاء الملف...';
-try{const blob=await buildReportPdf(rk);await saveFile(blob,(rk==='imp'?'impounded':'released')+'-report-'+new Date().toISOString().slice(0,10)+'.pdf');m.textContent=''}
-catch(e){m.textContent=e&&e.name==='AbortError'?'':'تعذر إنشاء الملف.'}}
+const cx=e=>e&&(e.name==='AbortError'||/cancel/i.test(e.message||''));
+const def=(rk==='imp'?'impounded':'released')+'-report-'+new Date().toISOString().slice(0,10)+'.pdf';
+const raw=((document.getElementById('fn')||{value:''}).value||'').replace(/[\\\/:*?"<>|\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().replace(/\.pdf$/i,'').replace(/^\.+/,'').trim();
+if(!raw){m.textContent='اكتب اسم الملف أولاً قبل التصدير.';const fe=document.getElementById('fn');if(fe)fe.focus();return}
+const name=raw+'.pdf';
+try{const blob=await buildReportPdf(rk);try{await saveFile(blob,name)}catch(e){if(cx(e)||name===def)throw e;await saveFile(blob,def)}m.textContent=''}
+catch(e){m.textContent=cx(e)?'':'تعذر إنشاء الملف.'}}
 function repText(k){const l=k==='imp'?imp():rel(),t=k==='imp'?'تقرير السيارات المحجوزة حالياً':'تقرير السيارات المفرج عنها';return t+'\n'+fmt(new Date())+'\n\n'+(l.map((c,i)=>`${i+1}) ${c.model} | ${c.color} | ${c.plate_number} | ${c.reason} | ${fmt(c.entry_date)}${k==='rel'?' ← '+fmt(c.exit_date):''}`).join('\n')||'لا توجد سجلات.')}
 async function shareReport(){const text=repText(rk),title='إدارة السيارات المحجوزة',m=document.getElementById('msg');
 try{const S=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Share;if(S){await S.share({title,text,dialogTitle:title});return}
@@ -136,14 +165,15 @@ try{await navigator.clipboard.writeText(text);m.textContent='تم نسخ الت�
 function printReport(){try{window.print()}catch(e){}}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
 if(a==='go'){tab=b.dataset.t;pend=null;err='';render()}
-else if(a==='rel'){const id=b.dataset.id;if(pend===id){const c=cars.find(x=>x.id===id);c.status='RELEASED';c.exit_date=new Date().toISOString();save();pend=null}else pend=id;render()}
-else if(a==='view'){rk=b.dataset.k;tab='report';render();scrollTo(0,0)}else if(a==='pdf')exportPdf();else if(a==='share')shareReport();else if(a==='print')printReport()});
+else if(a==='rel'){const id=b.dataset.id;if(pend===id){dbRel(id);pend=null}else pend=id;render()}
+else if(a==='view'){rk=b.dataset.k;tab='report';render();scrollTo(0,0)}else if(a==='mig')migrate();else if(a==='pdf')exportPdf();else if(a==='share')shareReport();else if(a==='print')printReport()});
 document.addEventListener('input',e=>{if(e.target.id==='q'){q=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)}});
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target,v=n=>f.elements[n].value.trim();
 if(!['m','c','p','r'].every(n=>v(n))){document.querySelector('.err').textContent='أكمل جميع البيانات المطلوبة قبل الحفظ.';return}
-cars.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),model:v('m'),color:v('c'),plate_number:v('p'),reason:v('r'),entry_date:new Date().toISOString(),exit_date:null,status:'IMPOUNDED'});
-save();err='';tab='home';render()});
+dbAdd({model:v('m'),color:v('c'),plate_number:v('p'),reason:v('r')});err='';tab='home';render()});
+initCloud();
 render();
+if('serviceWorker' in navigator&&!window.Capacitor&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
