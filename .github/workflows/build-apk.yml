@@ -16,6 +16,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm install
+      - name: Bundle Firebase and write config
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+        run: |
+          npx esbuild fb-entry.js --bundle --minify --format=iife --outfile=www/fb.js
+          printf 'window.FIREBASE_CONFIG = %s;\n' "${FIREBASE_CONFIG:-null}" > www/firebase-config.js
       - run: npx cap add android
       - name: Generate app icon
         run: |
