@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>لوحة الأدمن</title>
+<style>
+:root{--bg:#F5F2EA;--fg:#172A34;--card:#fff;--pri:#BF7936;--mut:#5F6E75;--bd:#E0D9CB;--acc:#F1E6D4;--accf:#5C3D20;--sec:#ECE5D8;--dst:#B64E42;--hdr:#172A34;--ok:#2E7D5B}
+@media(prefers-color-scheme:dark){:root{--bg:#10191E;--fg:#F1EEE6;--card:#1A2830;--mut:#A3B0B6;--bd:#2B3B44;--acc:#3A2A1A;--accf:#F1E6D4;--sec:#24343D;--hdr:#0B1216;--ok:#5FBF92}}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic",Tahoma,sans-serif}
+#app{max-width:720px;margin:0 auto;padding-bottom:40px}
+header{background:var(--hdr);color:#fff;padding:20px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+h1{margin:0;font-size:20px}h2{font-size:16px;margin:0}
+main{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.mut{color:var(--mut);font-size:13px}
+.badge{background:var(--acc);color:var(--accf);font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px}
+.badge.off{background:var(--sec);color:var(--dst)}
+button,input,select{font-family:inherit;font-size:15px}
+.btn{border:0;border-radius:12px;min-height:44px;padding:8px 14px;font-weight:700;cursor:pointer;background:var(--hdr);color:#fff}
+.btn.pri{background:var(--pri)}.btn.sec{background:var(--sec);color:var(--fg)}.btn.dst{background:var(--dst)}
+.btn:disabled{opacity:.5;cursor:default}
+input,select{border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:12px;padding:10px 12px;min-height:44px;box-sizing:border-box;width:100%}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+form{display:flex;flex-direction:column;gap:10px}
+.msg{min-height:20px;font-size:14px}.msg.err{color:var(--dst)}.msg.ok{color:var(--ok)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="firebase-config.js"></script>
+<script src="admin-fb.js"></script>
+<script>
+const A=window.FBA,cfg=window.FIREBASE_CONFIG,$=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let auth,db,me=null,users=[],unsub=null,note='';
+const view=h=>{$('app').innerHTML=h};
+const box=(t,d)=>`<header><h1>لوحة الأدمن</h1></header><main><div class="card"><h2>${t}</h2><div class="mut">${d}</div></div></main>`;
+const errTxt=e=>{const c=e&&e.code||'';return({'auth/email-already-in-use':'هذا البريد مسجل مسبقاً.','auth/weak-password':'كلمة السر ضعيفة، استخدم 6 أحرف على الأقل.','auth/invalid-email':'صيغة البريد غير صحيحة.','permission-denied':'ليس لديك صلاحية لهذا الإجراء.','auth/network-request-failed':'تعذر الاتصال بالإنترنت.'})[c]||('حدث خطأ'+(c?' ('+c+')':'')+'.')};
+function init(){
+if(!A||!cfg||!cfg.projectId||!cfg.apiKey){view(box('الإعدادات غير مكتملة','لم يتم ربط الصفحة بمشروع Firebase بعد.'));return}
+const app=A.initializeApp(cfg);auth=A.getAuth(app);db=A.getFirestore(app);A.onAuthStateChanged(auth,onAuth)}
+function loginView(err){const m=err||note;note='';
+view(`<header><h1>لوحة الأدمن</h1></header><main><form id="lf" class="card"><h2>تسجيل دخول الأدمن</h2>
+<label>البريد الإلكتروني<input name="em" type="email" autocomplete="username" required></label>
+<label>كلمة السر<input name="pw" type="password" autocomplete="current-password" required></label>
+<div class="msg err" id="lm">${esc(m)}</div><button class="btn pri" type="submit">دخول</button></form></main>`)}
+async function onAuth(u){
+if(unsub){unsub();unsub=null}me=null;if(!u){loginView();return}
+try{const s=await A.getDoc(A.doc(db,'users',u.uid)),d=s.exists()?s.data():null;
+if(!d||d.role!=='admin'||d.active!==true){note='هذا الحساب ليس أدمن أو موقوف.';await A.signOut(auth);return}
+me={uid:u.uid,email:u.email,name:d.name||u.email};shell();
+unsub=A.onSnapshot(A.query(A.collection(db,'users'),A.orderBy('created_at')),sn=>{users=sn.docs.map(x=>Object.assign({uid:x.id},x.data()));list()},e=>say('تعذر تحميل المستخدمين: '+errTxt(e),1))
+}catch(e){note='تعذر التحقق من الصلاحيات: '+errTxt(e);await A.signOut(auth).catch(()=>{})}}
+function shell(){
+view(`<header><div><h1>لوحة الأدمن</h1><div class="mut" style="color:#ccc">${esc(me.name)}</div></div><button class="btn sec" data-a="out">خروج</button></header><main>
+<form id="af" class="card"><h2>تسجيل مستخدم جديد</h2>
+<label>الاسم<input name="nm" required maxlength="60"></label>
+<label>البريد الإلكتروني<input name="em" type="email" required></label>
+<label>كلمة سر مؤقتة (6 أحرف على الأقل)<input name="pw" type="text" minlength="6" required autocomplete="off"></label>
+<label>الصلاحية<select name="rl"><option value="user">مستخدم</option><option value="admin">أدمن</option></select></label>
+<button class="btn pri" type="submit" id="ab">تسجيل المستخدم</button></form>
+<div class="msg" id="msg"></div><h2>المستخدمون</h2><div id="ul" style="display:flex;flex-direction:column;gap:10px"></div></main>`)}
+function say(t,bad){const m=$('msg');if(m){m.textContent=t;m.className='msg '+(bad?'err':'ok')}}
+function list(){const el=$('ul');if(!el)return;
+el.innerHTML=users.map(u=>{const self=u.uid===me.uid;return `<div class="card"><div class="row"><b>${esc(u.name)}</b><div><span class="badge">${u.role==='admin'?'أدمن':'مستخدم'}</span> <span class="badge ${u.active?'':'off'}">${u.active?'فعّال':'موقوف'}</span></div></div>
+<div class="mut">${esc(u.email)}</div><div class="acts"><button class="btn sec" data-a="tg" data-u="${esc(u.uid)}" ${self?'disabled':''}>${u.active?'إيقاف':'تفعيل'}</button><button class="btn sec" data-a="rs" data-e="${esc(u.email)}">إرسال رابط تغيير كلمة السر</button></div></div>`}).join('')||'<div class="card mut">لا يوجد مستخدمون بعد.</div>'}
+async function addUser(f){
+const name=f.nm.value.trim(),email=f.em.value.trim(),pw=f.pw.value,role=f.rl.value;
+if(!name||!email||pw.length<6){say('أكمل الاسم والبريد وكلمة سر من 6 أحرف على الأقل.',1);return}
+const b=$('ab');b.disabled=true;say('جاري التسجيل...');let sec;
+try{sec=A.initializeApp(cfg,'sec'+Date.now());const sa=A.getAuth(sec),c=await A.createUserWithEmailAndPassword(sa,email,pw);await A.signOut(sa);
+await A.setDoc(A.doc(db,'users',c.user.uid),{name,email,role,active:true,created_at:new Date().toISOString(),created_by:me.uid});
+f.reset();say('تم تسجيل '+name+'. سلّمه البريد وكلمة السر المؤقتة.')}
+catch(e){say(errTxt(e),1)}finally{if(sec)A.deleteApp(sec).catch(()=>{});b.disabled=false}}
+document.addEventListener('submit',async e=>{e.preventDefault();const f=e.target;
+if(f.id==='af')addUser(f);
+else if(f.id==='lf'){const m=$('lm');m.textContent='';try{await A.signInWithEmailAndPassword(auth,f.em.value.trim(),f.pw.value)}catch(er){m.textContent=(er&&er.code==='auth/network-request-failed')?errTxt(er):'بيانات الدخول غير صحيحة.'}}});
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
+if(a==='out')A.signOut(auth);
+else if(a==='tg'){const u=users.find(x=>x.uid===b.dataset.u);if(!u||u.uid===me.uid)return;try{await A.updateDoc(A.doc(db,'users',u.uid),{active:!u.active});say((u.active?'تم إيقاف ':'تم تفعيل ')+u.name)}catch(er){say(errTxt(er),1)}}
+else if(a==='rs'){try{await A.sendPasswordResetEmail(auth,b.dataset.e);say('أُرسل رابط تغيير كلمة السر إلى '+b.dataset.e)}catch(er){say(errTxt(er),1)}}});
+init();
+</script>
+</body>
+</html>
