@@ -18,15 +18,23 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
       - name: Build site
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
         run: |
           mkdir -p site
           cp -r www/. site/
-          cp manifest.webmanifest sw.js icon-192.png icon-512.png apple-touch-icon.png site/
+          cp manifest.webmanifest sw.js icon-192.png icon-512.png apple-touch-icon.png admin.html site/
+          npx esbuild fb-entry.js --bundle --minify --format=iife --outfile=site/fb.js
+          npx esbuild fb-admin-entry.js --bundle --minify --format=iife --outfile=site/admin-fb.js
+          printf 'window.FIREBASE_CONFIG = %s;\n' "${FIREBASE_CONFIG:-null}" > site/firebase-config.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
-
