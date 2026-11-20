@@ -77,7 +77,7 @@ function initCloud(){const cfg=window.FIREBASE_CONFIG,F=window.FB;if(!F||!cfg||!
 try{const app=F.initializeApp(cfg);let db;try{db=F.initializeFirestore(app,{localCache:F.persistentLocalCache()})}catch(e){db=F.getFirestore(app)}
 const col=F.collection(db,'cars');cloud={ord:a=>{const b=F.writeBatch(db);a.forEach(([id,o])=>b.update(F.doc(db,'cars',id),{order:o}));return b.commit()},add:o=>F.addDoc(col,o),rel:(id,t)=>F.updateDoc(F.doc(db,'cars',id),{status:'RELEASED',exit_date:t})};
 localCars=cars;cars=[];syncs='cache';
-F.onSnapshot(F.query(col,F.orderBy('entry_date')),sn=>{cars=sn.docs.map(d=>Object.assign({id:d.id},d.data()));syncs=sn.metadata.fromCache?'cache':(sn.metadata.hasPendingWrites?'pending':'ok');render()},errS)}
+F.onSnapshot(F.query(col,F.orderBy('entry_date')),{includeMetadataChanges:true},sn=>{cars=sn.docs.map(d=>Object.assign({id:d.id},d.data()));syncs=sn.metadata.fromCache?'cache':(sn.metadata.hasPendingWrites?'pending':'ok');render()},errS)}
 catch(e){cloud=null;syncs='error:'+e.message}}
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=d=>d?new Date(d).toLocaleString('ar-SA-u-ca-gregory-nu-latn',{dateStyle:'medium',timeStyle:'short'}):'';
